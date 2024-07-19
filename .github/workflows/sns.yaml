@@ -1,0 +1,71 @@
+name: SNS
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+  #checkov:skip=CKV_GHA_7: "The build output cannot be affected by user parameters other than the build entry point and the top-level source location. GitHub Actions workflow_dispatch inputs MUST be empty. "
+    inputs:
+      environment:
+        description: "test selection"
+        required: true
+        type: choice
+        default: "dev"
+        options:
+        - dev
+        - test
+        - prod
+
+
+permissions: read-all
+
+jobs:
+  SNS-Deployment:
+    name: "CDKTF"
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # - name: Checkov GitHub Action
+    #   uses: bridgecrewio/checkov-action@v12
+    #   with:
+    #     # This will add both a CLI output to the console and create a results.sarif file
+    #     output_format: cli
+    #     output_file_path: console
+
+    # - name: Set env var from input
+    #   run: |
+    #     echo "MY_ENV=${{ inputs.environment }}" >> $GITHUB_ENV
+    #   if: github.event_name == 'workflow_dispatch'
+
+    # - name: Set env var from static string value
+    #   run: |
+    #     echo "MY_ENV=dev" >> $GITHUB_ENV
+    #   if: github.event_name == 'push'
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4.0.2
+      with:
+        aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install dependencies
+      run: yarn install
+
+    - name: Generate module and provider bindings
+      run: npx cdktf-cli get
+
+    - name: Run Terraform CDK
+      uses: hashicorp/terraform-cdk-action@v5
+      with:
+        cdktfVersion: 0.20.8
+        terraformVersion: 1.9.2
+        mode: plan-only
+        stackName: my-stack
